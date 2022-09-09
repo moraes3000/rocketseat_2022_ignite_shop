@@ -4,6 +4,7 @@ const nextConfig = {
   swcMinify: true,
 
   experimental: {
+    newNextLinkBehavior: true,
     images: {
       allowFutureImage: true,
     },
