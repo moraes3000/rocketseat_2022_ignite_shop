@@ -1,21 +1,22 @@
-import type { AppProps } from 'next/app'
-import Image from 'next/future/image';
+import { AppProps } from 'next/app'
 
 import { globalStyles } from '../styles/global'
-import logoImg from '../assets/logo.svg'
-import { Container, Header } from '../styles/pages/app';
 
-globalStyles();
+import { CartProvider } from 'use-shopping-cart'
+import { Header } from '../components/Header'
+import { Container } from '../styles/pages/app'
 
-function MyApp({ Component, pageProps }: AppProps) {
+globalStyles()
+
+const stripeKey = process.env.STRIPE_SECRET_API_KEY
+
+export default function App({ Component, pageProps }: AppProps) {
   return (
-    <Container>
-      <Header>
-        <Image src={logoImg} alt="logo" />
-      </Header>
-      <Component {...pageProps} />
-    </Container>
+    <CartProvider cartMode="checkout-session" stripe={stripeKey} currency="BRL">
+      <Container>
+        <Header />
+        <Component {...pageProps} />
+      </Container>
+    </CartProvider>
   )
 }
-
-export default MyApp

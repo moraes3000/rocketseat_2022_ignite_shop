@@ -1,32 +1,64 @@
-import Image from "next/future/image"
-import Head from 'next/head'
-import { GetStaticProps } from "next"
-import Link from "next/link"
-
 import { useKeenSlider } from 'keen-slider/react'
-
-import { stripe } from "../lib/stripe"
-import { HomeContainer, Product } from "../styles/pages/home"
+import Image from 'next/future/image'
+import { HomeContainer, Product, SliderContainer } from '../styles/pages/home'
 
 import 'keen-slider/keen-slider.min.css'
-import Stripe from "stripe"
+import { GetStaticProps } from 'next'
+import Head from 'next/head'
+import Link from 'next/link'
+import { Handbag } from 'phosphor-react'
+import { useState } from 'react'
+import { Stripe } from 'stripe'
+import { formatCurrencyString, useShoppingCart } from 'use-shopping-cart'
+import { stripe } from '../lib/stripe'
+import { CartButton } from '../styles/components/header'
+
+type ProductType = {
+  name: string
+  id: string
+  imageUrl: string
+  price: string
+  description: string
+  priceNotFormatted: number
+  priceId: string
+}
 
 interface HomeProps {
-  products: {
-    id: string
-    name: string
-    imageUrl: string
-    price: string
-  }[]
+  products: ProductType[]
 }
 
 export default function Home({ products }: HomeProps) {
-  const [sliderRef] = useKeenSlider({
+  const { addItem, cartDetails } = useShoppingCart()
+  const [currentSlide, setCurrentSlide] = useState(0)
+  const [loaded, setLoaded] = useState(false)
+  const [sliderRef, instanceRef] = useKeenSlider({
     slides: {
       perView: 3,
-      spacing: 48
+      spacing: 48,
+    },
+
+    slideChanged(slider) {
+      setCurrentSlide(slider.track.details.rel)
+    },
+    created() {
+      setLoaded(true)
+    },
+  })
+
+  function handleAddItemToCart(product: ProductType) {
+    if (cartDetails[product.id]) return () => { }
+    return () => {
+      addItem({
+        currency: 'BRL',
+        id: product.id,
+        name: product.name,
+        price: product.priceNotFormatted,
+        price_id: product.priceId,
+        image: product.imageUrl,
+        description: product.description,
+      })
     }
-  });
+  }
 
   return (
     <>
@@ -34,50 +66,62 @@ export default function Home({ products }: HomeProps) {
         <title>Home | Ignite Shop</title>
       </Head>
 
-      <HomeContainer ref={sliderRef} className="keen-slider">
-        {products.map(product => {
-          return (
-            <Link href={`/product/${product.id}`} key={product.id} prefetch={false}>
-              <Product className="keen-slider__slide">
+      <SliderContainer>
+        <HomeContainer ref={sliderRef} className="keen-slider">
+          {products.map((product) => (
+            <Product key={product.id} className="keen-slider__slide">
+              <Link href={`/product/${product.id}`} passHref prefetch={false}>
                 <Image src={product.imageUrl} width={520} height={480} alt="" />
+              </Link>
 
-                <footer>
+              <footer>
+                <div>
                   <strong>{product.name}</strong>
                   <span>{product.price}</span>
-                </footer>
-              </Product>
-            </Link>
-          )
-        })}
-      </HomeContainer>
+                </div>
+                <CartButton
+                  onClick={handleAddItemToCart(product)}
+                  color="green"
+                >
+                  <Handbag size={24} />
+                </CartButton>
+              </footer>
+            </Product>
+          ))}
+        </HomeContainer>
+      </SliderContainer>
     </>
   )
 }
 
+
 export const getStaticProps: GetStaticProps = async () => {
   const response = await stripe.products.list({
-    expand: ['data.default_price']
-  });
+    expand: ['data.default_price'],
+  })
 
-
-  const products = response.data.map(product => {
-    const price = product.default_price as Stripe.Price;
+  const products = response.data.map((product) => {
+    const price = product.default_price as Stripe.Price
 
     return {
       id: product.id,
       name: product.name,
-      imageUrl: product.images[0],
-      price: new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL'
-      }).format((price.unit_amount ? price.unit_amount : 0) / 100),
+      imageUrl: product.images[0] ?? '',
+      price: formatCurrencyString({
+        currency: 'BRL',
+        value: price.unit_amount,
+        language: 'pt-BR',
+      }),
+      priceId: price.id,
+      description: product.description,
+      priceNotFormatted: price.unit_amount,
     }
   })
 
   return {
     props: {
-      products
+      products,
     },
-    revalidate: 60 * 60 * 2 // 2 hours,
+    revalidate: 60 * 60 * 10,
   }
 }
